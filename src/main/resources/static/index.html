@@ -50,7 +50,6 @@
 </div>
 
 <script>
-    // 1. WYSYŁANIE KOMEND
     function sendCmd(cmd) {
         const params = new URLSearchParams();
         params.append('cmd', cmd);
@@ -59,7 +58,6 @@
             .catch(err => console.error("Błąd sieci przy wysyłaniu komendy"));
     }
 
-    // 2. ZASTOSOWANIE PROFILU
     function applyPlant() {
         const select = document.getElementById('plantSelect');
         const threshold = select.value;
@@ -70,7 +68,6 @@
         }
     }
 
-    // 3. DODAWANIE ROŚLINY
     function addPlant() {
         const nameInput = document.getElementById('newName');
         const humInput = document.getElementById('newHum');
@@ -94,7 +91,6 @@
         });
     }
 
-    // 4. USUWANIE ROŚLINY (Działa z ID z bazy)
     function deletePlant() {
         const select = document.getElementById('plantSelect');
         const selectedOption = select.options[select.selectedIndex];
@@ -115,7 +111,6 @@
         }
     }
 
-    // 5. ŁADOWANIE LISTY ROŚLIN
     function loadPlants() {
         fetch('/api/plants')
             .then(r => r.json())
@@ -125,7 +120,7 @@
                     select.innerHTML = '<option value="">Brak roślin w bazie</option>';
                     return;
                 }
-                // Mapujemy: value to próg (dla Arduino), data-id to klucz (dla bazy)
+
                 select.innerHTML = plants.map(p =>
                     `<option value="${p.threshold}" data-id="${p.id}">${p.name} (${p.threshold}%)</option>`
                 ).join('');
@@ -135,7 +130,6 @@
             });
     }
 
-    // 6. MONITORING DANYCH (Odświeżanie co 1s)
     function updateData() {
         // Dodajemy timestamp Date.now() aby ominąć cache przeglądarki
         fetch('/api/data?t=' + Date.now())
@@ -155,7 +149,6 @@
                         `;
                     }
                 } else {
-                    // Wyświetla surowy tekst (np. "Czekam na dane...")
                     statusDiv.innerHTML = `<span>${line}</span><span class="time-stamp">Sync: ${new Date().toLocaleTimeString()}</span>`;
                 }
             })
@@ -164,8 +157,7 @@
             });
     }
 
-    // Uruchomienie funkcji przy starcie
-    setInterval(updateData, 1000); // Odświeżaj co 1 sekundę
+    setInterval(updateData, 1000);
     loadPlants();
 </script>
 </body>

@@ -19,20 +19,16 @@ public class GardenController {
         initSerial();
     }
 
-    // Внутри GardenController.java измени метод initSerial:
-
     private void initSerial() {
-        comPort = SerialPort.getCommPort("COM5"); // Sprawdź czy to nadal COM5
+        comPort = SerialPort.getCommPort("COM5");
         comPort.setBaudRate(9600);
 
-        // Ustawiamy timeouty, żeby Java nie czekała w nieskończoność na jedną linię
         comPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 100, 0);
 
         if (comPort.openPort()) {
             System.out.println("Port otwarty. Czekam na dane...");
 
             new Thread(() -> {
-                // Używamy BufferedReader zamiast Scannera dla lepszej stabilności
                 try (java.io.BufferedReader reader = new java.io.BufferedReader(
                         new java.io.InputStreamReader(comPort.getInputStream()))) {
                     while (true) {
@@ -40,10 +36,10 @@ public class GardenController {
                             String line = reader.readLine();
                             if (line != null && line.startsWith("DATA|")) {
                                 lastData = line.trim();
-                                // Opcjonalnie: System.out.println("Odebrano: " + lastData);
+
                             }
                         }
-                        Thread.sleep(50); // Mała pauza, żeby nie obciążać procesora
+                        Thread.sleep(50);
                     }
                 } catch (Exception e) {
                     System.err.println("Błąd odczytu: " + e.getMessage());
