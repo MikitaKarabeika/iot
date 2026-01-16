@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Garden v3.0</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; text-align: center; margin: 0; padding: 20px; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .status-box { background: #f8f9fa; border-radius: 10px; padding: 15px; margin: 15px 0; font-weight: bold; min-height: 80px; border: 1px solid #ddd; line-height: 1.6; }
+        button { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; color: white; transition: 0.2s; font-weight: bold; }
+        .btn-on { background: #28a745; } .btn-off { background: #dc3545; } .btn-auto { background: #007bff; }
+        .btn-add { background: #6c757d; } .btn-apply { background: #f39c12; margin-top: 10px; }
+        .btn-delete { background: #e74c3c; margin-top: 5px; font-size: 12px; padding: 8px; opacity: 0.9; }
+        .btn-delete:hover { opacity: 1; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        .section { margin-top: 20px; padding-top: 15px; border-top: 2px solid #eee; text-align: left; }
+        h3 { margin-bottom: 10px; font-size: 16px; color: #333; }
+        .time-stamp { display: block; font-size: 10px; color: #999; margin-top: 8px; font-weight: normal; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🌿 Inteligentny Ogród</h2>
+
+    <div id="status" class="status-box">Inicjalizacja systemu...</div>
+
+    <div class="section">
+        <h3>Sterowanie ręczne:</h3>
+        <button class="btn-on" onclick="sendCmd('MODE_ON')">WŁĄCZ POMPĘ</button>
+        <button class="btn-off" onclick="sendCmd('MODE_OFF')">WYŁĄCZ POMPĘ</button>
+        <button class="btn-auto" onclick="sendCmd('MODE_AUTO')">TRYB AUTOMATYCZNY</button>
+    </div>
+
+    <div class="section">
+        <h3>Profil rośliny:</h3>
+        <select id="plantSelect">
+            <option value="">Ładowanie roślin...</option>
+        </select>
+        <button class="btn-apply" onclick="applyPlant()">ZASTOSUJ PROFIL</button>
+        <button class="btn-delete" onclick="deletePlant()">USUŃ WYBRANY PROFIL</button>
+    </div>
+
+    <div class="section">
+        <h3>Dodaj nową roślinę:</h3>
+        <input type="text" id="newName" placeholder="Nazwa (np. Paprotka)">
+        <input type="number" id="newHum" placeholder="Próg wilgotności (0-100)">
+        <button class="btn-add" onclick="addPlant()">DODAJ DO BAZY</button>
+    </div>
+</div>
+
+<script>
+    // 1. WYSYŁANIE KOMEND
+    function sendCmd(cmd) {
+        const params = new URLSearchParams();
+        params.append('cmd', cmd);
+        fetch('/api/command?' + params.toString(), { method: 'POST' })
+            .then(() => console.log("Wysłano komendę: " + cmd))
+            .catch(err => console.error("Błąd sieci przy wysyłaniu komendy"));
+    }
+
+    // 2. ZASTOSOWANIE PROFILU
+    function applyPlant() {
+        const select = document.getElementById('plantSelect');
+        const threshold = select.value;
+        if (threshold) {
+            sendCmd('SET_HUM:' + threshold);
+        } else {
+            alert("Wybierz roślinę z listy!");
+        }
+    }
+
+    // 3. DODAWANIE ROŚLINY
+    function addPlant() {
+        const nameInput = document.getElementById('newName');
+        const humInput = document.getElementById('newHum');
+        const name = nameInput.value.trim();
+        const hum = parseInt(humInput.value);
+
+        if (!name || isNaN(hum)) return alert("Podaj nazwę i poprawny próg!");
+
+        fetch('/api/plants', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, threshold: hum })
+        }).then(r => {
+            if (r.ok) {
+                loadPlants();
+                nameInput.value = '';
+                humInput.value = '';
+            } else {
+                alert("Błąd zapisu w bazie danych.");
+            }
+        });
+    }
+
+    // 4. USUWANIE ROŚLINY (Działa z ID z bazy)
+    function deletePlant() {
+        const select = document.getElementById('plantSelect');
+        const selectedOption = select.options[select.selectedIndex];
+        const plantId = selectedOption?.getAttribute('data-id');
+
+        if (!plantId || select.value === "") return alert("Wybierz roślinę do usunięcia!");
+
+        if (confirm(`Czy na pewno usunąć profil: ${selectedOption.text}?`)) {
+            fetch('/api/plants/' + plantId, { method: 'DELETE' })
+                .then(r => {
+                    if (r.ok) {
+                        loadPlants();
+                    } else {
+                        alert("Serwer nie mógł usunąć rośliny.");
+                    }
+                })
+                .catch(err => alert("Błąd połączenia podczas usuwania."));
+        }
+    }
+
+    // 5. ŁADOWANIE LISTY ROŚLIN
+    function loadPlants() {
+        fetch('/api/plants')
+            .then(r => r.json())
+            .then(plants => {
+                const select = document.getElementById('plantSelect');
+                if (plants.length === 0) {
+                    select.innerHTML = '<option value="">Brak roślin w bazie</option>';
+                    return;
+                }
+                // Mapujemy: value to próg (dla Arduino), data-id to klucz (dla bazy)
+                select.innerHTML = plants.map(p =>
+                    `<option value="${p.threshold}" data-id="${p.id}">${p.name} (${p.threshold}%)</option>`
+                ).join('');
+            })
+            .catch(() => {
+                document.getElementById('plantSelect').innerHTML = '<option value="">Błąd ładowania</option>';
+            });
+    }
+
+    // 6. MONITORING DANYCH (Odświeżanie co 1s)
+    function updateData() {
+        // Dodajemy timestamp Date.now() aby ominąć cache przeglądarki
+        fetch('/api/data?t=' + Date.now())
+            .then(r => r.text())
+            .then(data => {
+                const statusDiv = document.getElementById('status');
+                const line = data.trim();
+
+                if (line.startsWith("DATA|")) {
+                    const p = line.split('|');
+                    if (p.length >= 7) {
+                        statusDiv.innerHTML = `
+                            <div style="margin-bottom: 5px;">Gleba: <span style="color:#2ecc71"><b>${p[3]}%</b></span> (cel: ${p[4]}%)</div>
+                            <div style="font-size: 0.9em; color: #555;">Powietrze: ${p[1]}°C / ${p[2]}%</div>
+                            <div style="font-size: 0.9em;">Pompa: <b style="color: ${p[5] === 'WL' ? '#27ae60' : '#e74c3c'}">${p[5]}</b> | Tryb: <i>${p[6]}</i></div>
+                            <span class="time-stamp">Ostatni odczyt: ${new Date().toLocaleTimeString()}</span>
+                        `;
+                    }
+                } else {
+                    // Wyświetla surowy tekst (np. "Czekam na dane...")
+                    statusDiv.innerHTML = `<span>${line}</span><span class="time-stamp">Sync: ${new Date().toLocaleTimeString()}</span>`;
+                }
+            })
+            .catch(() => {
+                document.getElementById('status').innerHTML = "<b style='color:red'>BRAK POŁĄCZENIA Z API</b>";
+            });
+    }
+
+    // Uruchomienie funkcji przy starcie
+    setInterval(updateData, 1000); // Odświeżaj co 1 sekundę
+    loadPlants();
+</script>
+</body>
+</html>
